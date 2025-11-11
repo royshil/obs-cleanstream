@@ -226,14 +226,14 @@ long long process_audio_from_buffer(struct cleanstream_data *gf)
 
 		// copy gf->frames from the end of the input buffer to the copy_buffers
 		for (size_t c = 0; c < gf->channels; c++) {
-			circlebuf_peek_back(&gf->input_buffers[c], gf->copy_buffers[c],
-					    gf->frames * sizeof(float));
+			deque_peek_back(&gf->input_buffers[c], gf->copy_buffers[c],
+					gf->frames * sizeof(float));
 		}
 
 		// peek at the info_buffer to get the timestamp of the last info
 		struct cleanstream_audio_info info_from_buf = {0};
-		circlebuf_peek_back(&gf->info_buffer, &info_from_buf,
-				    sizeof(struct cleanstream_audio_info));
+		deque_peek_back(&gf->info_buffer, &info_from_buf,
+				sizeof(struct cleanstream_audio_info));
 		end_timestamp = info_from_buf.timestamp;
 		start_timestamp =
 			end_timestamp - (int)(gf->frames * 1000 / gf->sample_rate) * 1000000;

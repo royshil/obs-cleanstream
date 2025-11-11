@@ -58,7 +58,7 @@ jobs:
 
   macos-build:
     name: Build for macOS 🍏
-    runs-on: macos-13
+    runs-on: macos-14
     needs: check-event
     strategy:
       matrix:
@@ -92,13 +92,18 @@ jobs:
           print "pluginName=${product_name}" >> $GITHUB_OUTPUT
           print "pluginVersion=${product_version}" >> $GITHUB_OUTPUT
 
+      - uses: maxim-lobanov/setup-xcode@v1.6.0
+        id: set-xcode-version
+        with:
+          xcode-version: 16.2
+
       - uses: actions/cache@v4
         id: ccache-cache
         with:
           path: ${{ github.workspace }}/.ccache
-          key: ${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}
+          key: ${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}-${{ matrix.architecture }}
           restore-keys: |
-            ${{ runner.os }}-ccache-
+            ${{ runner.os }}-ccache-${{ matrix.architecture }}-
 
       - name: Set Up Codesigning 🔑
         uses: ./.github/actions/setup-macos-codesigning
@@ -157,10 +162,30 @@ jobs:
     name: Build for Ubuntu 🐧
     runs-on: ubuntu-22.04
     needs: check-event
+    strategy:
+      matrix:
+        acceleration: [generic, nvidia, amd]
     defaults:
       run:
         shell: bash
     steps:
+      - name: Free Disk Space (Ubuntu)
+        if: ${{ matrix.acceleration == 'amd' || matrix.acceleration == 'nvidia' }}
+        uses: jlumbroso/free-disk-space@main
+        with:
+          # this might remove tools that are actually needed,
+          # if set to "true" but frees about 6 GB
+          tool-cache: false
+          # Needs to be false to prevent running out of memory
+          swap-storage: false
+          # large-packages takes a long time so don't remove them unless we need to
+          large-packages: false
+
+          android: true
+          dotnet: true
+          haskell: true
+          docker-images: true
+
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -178,6 +203,36 @@ jobs:
           echo "pluginName=${product_name}" >> $GITHUB_OUTPUT
           echo "pluginVersion=${product_version}" >> $GITHUB_OUTPUT
 
+      - name: "Install Vulkan SDK"
+        run: |
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+          sudo apt update
+          sudo apt -y install vulkan-sdk
+
+      # CUDA toolkit needed for linking against so it can be found when looking up package dependencies
+      - name: "Install CUDA toolkit 12.8"
+        if: ${{ matrix.acceleration == 'nvidia' }}
+        run: |
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt update
+          sudo apt -y install cuda-12-8
+          export PATH=/usr/local/cuda-12.8/bin${PATH:+:${PATH}}
+          export LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib ${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+
+      # hip SDK needed for linking against so it can be found when looking up package dependencies
+      - name: "Install AMD hip SDK v6.4.2"
+        if: ${{ matrix.acceleration == 'amd' }}
+        run: |
+          wget https://repo.radeon.com/amdgpu-install/6.4.2/ubuntu/jammy/amdgpu-install_6.4.60402-1_all.deb
+          sudo apt install ./amdgpu-install_6.4.60402-1_all.deb
+          sudo apt update
+          sudo apt install python3-setuptools python3-wheel
+          sudo usermod -a -G render,video $LOGNAME # Add the current user to the render and video groups
+          sudo apt install rocm
+          sudo apt update && sudo apt install hipblas
+
       - uses: actions/cache@v4
         id: ccache-cache
         with:
@@ -194,6 +249,7 @@ jobs:
         with:
           target: x86_64
           config: ${{ needs.check-event.outputs.config }}
+          acceleration: ${{ matrix.acceleration }}
 
       - name: Package Plugin 📀
         uses: ./.github/actions/package-plugin
@@ -201,9 +257,11 @@ jobs:
           package: ${{ fromJSON(needs.check-event.outputs.package) }}
           target: x86_64
           config: ${{ needs.check-event.outputs.config }}
+          acceleration: ${{ matrix.acceleration }}
 
       - name: Upload Source Tarball 🗜️
         uses: actions/upload-artifact@v4
+        if: ${{ matrix.acceleration == 'generic' }}
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-sources-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-source.*
@@ -211,15 +269,15 @@ jobs:
       - name: Upload Artifacts 📡
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-22.04-x86_64-${{ needs.check-event.outputs.commitHash }}
-          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*.*
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-22.04-x86_64-${{ matrix.acceleration }}-${{ needs.check-event.outputs.commitHash }}
+          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64-linux-gnu-${{ matrix.acceleration }}*.*
 
       - name: Upload debug symbol artifacts 🪲
         uses: actions/upload-artifact@v4
         if: ${{ fromJSON(needs.check-event.outputs.package) }}
         with:
-          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-22.04-x86_64-${{ needs.check-event.outputs.commitHash }}-dbgsym
-          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*-dbgsym.ddeb
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-22.04-x86_64-${{ matrix.acceleration }}-${{ needs.check-event.outputs.commitHash }}-dbgsym
+          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64-linux-gnu--${{ matrix.acceleration }}*-dbgsym.ddeb
 
   windows-build:
     name: Build for Windows 🪟
@@ -227,7 +285,7 @@ jobs:
     needs: check-event
     strategy:
       matrix:
-        acceleration: [cpu, hipblas, cuda]
+        acceleration: [generic, nvidia, amd]
     defaults:
       run:
         shell: pwsh

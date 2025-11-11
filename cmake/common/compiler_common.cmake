@@ -3,11 +3,6 @@
 include_guard(GLOBAL)
 
 # Set C and C++ language standards to C17 and C++17
-if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
-  set(CMAKE_C_STANDARD 17)
-else()
-  set(CMAKE_C_STANDARD 11)
-endif()
 set(CMAKE_C_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
@@ -24,6 +19,7 @@ set(_obs_clang_c_options
     -Wbool-conversion
     -Wcomma
     -Wconstant-conversion
+    -Wdeprecated-declarations
     -Wempty-body
     -Wenum-conversion
     -Werror=return-type
@@ -35,7 +31,6 @@ set(_obs_clang_c_options
     -Wint-conversion
     -Wnewline-eof
     -Wno-conversion
-    -Wno-deprecated-declarations
     -Wno-error=deprecated-declarations
     -Wno-float-conversion
     -Wno-implicit-fallthrough

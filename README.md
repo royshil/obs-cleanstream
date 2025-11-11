@@ -74,10 +74,16 @@ Start by cloning this repo to a directory of your choice.
 
 ### Mac OSX
 
+Set the `MACOS_ARCH` environment variable to `x86_64` or `arm64` as appropriate for the architecture you want to build for
+
+```sh
+$ export MACOS_ARCH="arm64"
+```
+
 Using the CI pipeline scripts, locally you would just call the zsh script.
 
 ```sh
-$ ./.github/scripts/build-macos.zsh -c Release -t macos-x86_64
+$ ./.github/scripts/build-macos.zsh
 ```
 
 #### Install
@@ -91,12 +97,24 @@ $ ./.github/scripts/package-macos.zsh -c Release -t macos-x86_64
 
 ### Linux (Ubuntu-ish)
 
+Set the `ACCELERATION` environment variable to `generic`, `nvidia`, or `amd` to use the appropriate pre-built whisper libraries. `nvidia` includes CUDA support, `amd` includes ROCm support via hipblas, and all variants include Vulkan, OpenCL and OpenBLAS support
+
+```sh
+$ export ACCELERATION="nvidia"
+```
+
 Use the CI scripts again
 ```sh
 $ ./.github/scripts/build-linux.sh
 ```
 
 ### Windows
+
+Set the `ACCELERATION` environment variable to `generic`, `nvidia`, or `amd` to use the appropriate pre-built whisper libraries. `nvidia` includes CUDA support, `amd` includes ROCm support via hipblas, and all variants include Vulkan and OpenBLAS support
+
+```powershell
+> $env:ACCELERATION = "nvidia"
+```
 
 Use the CI scripts again, for example:
 
@@ -110,16 +128,6 @@ The build should exist in the `./release` folder off the root. You can manually 
 > Copy-Item -Recurse -Force "release\Release\*" -Destination "C:\Program Files\obs-studio\"
 ```
 
-#### Building with CUDA support on Windows
-
-CleanStream will now build with CUDA support automatically through a prebuilt binary of Whisper.cpp from https://github.com/occ-ai/occ-ai-dep-whispercpp. The CMake scripts will download all necessary files.
-
-To build with cuda add `CPU_OR_CUDA` as an environment variable (with `cpu`, `12.2.0` or `11.8.0`) and build regularly
-
-```powershell
-> $env:CPU_OR_CUDA="12.2.0"
-> .github/scripts/Build-Windows.ps1 -Configuration Release
-```
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=locaal-ai/obs-cleanstream&type=Date)](https://star-history.com/#locaal-ai/obs-cleanstream&Date)

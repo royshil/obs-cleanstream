@@ -8,7 +8,9 @@ set(CUSTOM_ONNXRUNTIME_HASH
     ""
     CACHE STRING "Hash of a downloaded ONNX Runtime tarball")
 
-set(Onnxruntime_VERSION "1.19.2")
+# v1.20.1 is the last version to support MacOS 12 v1.23.0 is the last version to support x86_64 on MacOS, as well as
+# MacOS 13
+set(Onnxruntime_VERSION "1.20.1")
 
 if(CUSTOM_ONNXRUNTIME_URL STREQUAL "")
   set(USE_PREDEFINED_ONNXRUNTIME ON)
@@ -25,17 +27,17 @@ if(USE_PREDEFINED_ONNXRUNTIME)
 
   if(APPLE)
     set(Onnxruntime_URL "${Onnxruntime_BASEURL}/onnxruntime-osx-universal2-${Onnxruntime_VERSION}.tgz")
-    set(Onnxruntime_HASH SHA256=b0289ddbc32f76e5d385abc7b74cc7c2c51cdf2285b7d118bf9d71206e5aee3a)
+    set(Onnxruntime_HASH SHA256=da4349e01a7e997f5034563183c7183d069caadc1d95f499b560961787813efd)
   elseif(MSVC)
     set(Onnxruntime_URL "${Onnxruntime_BASEURL}/onnxruntime-win-x64-${Onnxruntime_VERSION}.zip")
-    set(OOnnxruntime_HASH SHA256=dc4f841e511977c0a4f02e5066c3d9a58427644010ab4f89b918614a1cd4c2b0)
+    set(OOnnxruntime_HASH SHA256=78d447051e48bd2e1e778bba378bec4ece11191c9e538cf7b2c4a4565e8f5581)
   else()
     if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
       set(Onnxruntime_URL "${Onnxruntime_BASEURL}/onnxruntime-linux-aarch64-${Onnxruntime_VERSION}.tgz")
-      set(Onnxruntime_HASH SHA256=dc4f841e511977c0a4f02e5066c3d9a58427644010ab4f89b918614a1cd4c2b0)
+      set(Onnxruntime_HASH SHA256=ae4fedbdc8c18d688c01306b4b50c63de3445cdf2dbd720e01a2fa3810b8106a)
     else()
       set(Onnxruntime_URL "${Onnxruntime_BASEURL}/onnxruntime-linux-x64-gpu-${Onnxruntime_VERSION}.tgz")
-      set(Onnxruntime_HASH SHA256=4d1c10f0b410b67261302c6e18bb1b05ba924ca9081e3a26959e0d12ab69f534)
+      set(Onnxruntime_HASH SHA256=6bfb87c6ebe55367a94509b8ef062239e188dccf8d5caac8d6909b2344893bf0)
     endif()
   endif()
 else()
@@ -82,15 +84,14 @@ elseif(MSVC)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Ort)
 
 else()
+  set(Onnxruntime_LINK_LIBS "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so.${Onnxruntime_VERSION}")
+  set(Onnxruntime_ADDITIONAL_LIBS
+      "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime_providers_shared.so"
+      "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so" "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so.1")
   if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
-    set(Onnxruntime_LINK_LIBS "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so.${Onnxruntime_VERSION}")
-    set(Onnxruntime_INSTALL_LIBS ${Onnxruntime_LINK_LIBS} "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so.1"
-                                 "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so")
+    set(Onnxruntime_INSTALL_LIBS ${Onnxruntime_LINK_LIBS} ${Onnxruntime_ADDITIONAL_LIBS})
   else()
-    set(Onnxruntime_LINK_LIBS "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so.${Onnxruntime_VERSION}")
-    set(Onnxruntime_INSTALL_LIBS
-        ${Onnxruntime_LINK_LIBS} "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime_providers_shared.so"
-        "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so.1" "${onnxruntime_SOURCE_DIR}/lib/libonnxruntime.so")
+    set(Onnxruntime_INSTALL_LIBS ${Onnxruntime_LINK_LIBS} ${Onnxruntime_ADDITIONAL_LIBS})
   endif()
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ${Onnxruntime_LINK_LIBS})
   target_include_directories(${CMAKE_PROJECT_NAME} SYSTEM PUBLIC "${onnxruntime_SOURCE_DIR}/include")

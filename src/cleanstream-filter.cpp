@@ -63,16 +63,16 @@ struct obs_audio_data *cleanstream_filter_audio(void *data, struct obs_audio_dat
 		std::lock_guard<std::mutex> lock(gf->whisper_buf_mutex); // scoped lock
 
 		if (audio != nullptr && audio->frames > 0) {
-			// push back current audio data to input circlebuf
+			// push back current audio data to input deque
 			for (size_t c = 0; c < gf->channels; c++) {
-				circlebuf_push_back(&gf->input_buffers[c], audio->data[c],
-						    audio->frames * sizeof(float));
+				deque_push_back(&gf->input_buffers[c], audio->data[c],
+						audio->frames * sizeof(float));
 			}
-			// push audio packet info (timestamp/frame count) to info circlebuf
+			// push audio packet info (timestamp/frame count) to info deque
 			struct cleanstream_audio_info info = {0};
 			info.frames = audio->frames;       // number of frames in this packet
 			info.timestamp = audio->timestamp; // timestamp of this packet
-			circlebuf_push_back(&gf->info_buffer, &info, sizeof(info));
+			deque_push_back(&gf->info_buffer, &info, sizeof(info));
 		}
 		input_buffer_size = gf->input_buffers[0].size;
 	}
@@ -91,22 +91,22 @@ struct obs_audio_data *cleanstream_filter_audio(void *data, struct obs_audio_dat
 			while (temporary_buffers[0].size() < num_frames_needed) {
 				struct cleanstream_audio_info info_out = {0};
 				// pop from input buffers to get audio packet info
-				circlebuf_pop_front(&gf->info_buffer, &info_out, sizeof(info_out));
+				deque_pop_front(&gf->info_buffer, &info_out, sizeof(info_out));
 				if (timestamp == 0) {
 					timestamp = info_out.timestamp;
 				}
 
-				// pop from input circlebuf to audio data
+				// pop from input deque to audio data
 				for (size_t i = 0; i < gf->channels; i++) {
 					// increase the size of the temporary buffer to hold the incoming audio in addition
 					// to the existing audio on the temporary buffer
 					temporary_buffers[i].resize(temporary_buffers[i].size() +
 								    info_out.frames);
-					circlebuf_pop_front(&gf->input_buffers[i],
-							    temporary_buffers[i].data() +
-								    temporary_buffers[i].size() -
-								    info_out.frames,
-							    info_out.frames * sizeof(float));
+					deque_pop_front(&gf->input_buffers[i],
+							temporary_buffers[i].data() +
+								temporary_buffers[i].size() -
+								info_out.frames,
+							info_out.frames * sizeof(float));
 				}
 			}
 		}
@@ -210,11 +210,11 @@ void cleanstream_destroy(void *data)
 		bfree(gf->copy_buffers[0]);
 		gf->copy_buffers[0] = nullptr;
 		for (size_t i = 0; i < gf->channels; i++) {
-			circlebuf_free(&gf->input_buffers[i]);
+			deque_free(&gf->input_buffers[i]);
 		}
 	}
 
-	circlebuf_free(&gf->info_buffer);
+	deque_free(&gf->info_buffer);
 	da_free(gf->output_data);
 
 	bfree(gf);
@@ -263,8 +263,7 @@ void cleanstream_update(void *data, obs_data_t *s)
 		gf->whisper_params.split_on_word = obs_data_get_bool(s, "split_on_word");
 		gf->whisper_params.max_tokens = (int)obs_data_get_int(s, "max_tokens");
 		gf->whisper_params.suppress_blank = obs_data_get_bool(s, "suppress_blank");
-		gf->whisper_params.suppress_non_speech_tokens =
-			obs_data_get_bool(s, "suppress_non_speech_tokens");
+		gf->whisper_params.suppress_nst = obs_data_get_bool(s, "suppress_nst");
 		gf->whisper_params.temperature = (float)obs_data_get_double(s, "temperature");
 		gf->whisper_params.max_initial_ts = (float)obs_data_get_double(s, "max_initial_ts");
 		gf->whisper_params.length_penalty = (float)obs_data_get_double(s, "length_penalty");
@@ -290,10 +289,10 @@ void *cleanstream_create(obs_data_t *settings, obs_source_t *filter)
 	gf->current_result_end_timestamp = 0;
 
 	for (size_t i = 0; i < MAX_AUDIO_CHANNELS; i++) {
-		circlebuf_init(&gf->input_buffers[i]);
+		deque_init(&gf->input_buffers[i]);
 		gf->output_audio.data[i] = nullptr;
 	}
-	circlebuf_init(&gf->info_buffer);
+	deque_init(&gf->info_buffer);
 	da_init(gf->output_data);
 
 	gf->output_audio.frames = 0;
@@ -406,7 +405,7 @@ void cleanstream_defaults(obs_data_t *s)
 	obs_data_set_default_int(s, "max_tokens", 7);
 	obs_data_set_default_bool(s, "speed_up", false);
 	obs_data_set_default_bool(s, "suppress_blank", true);
-	obs_data_set_default_bool(s, "suppress_non_speech_tokens", true);
+	obs_data_set_default_bool(s, "suppress_nst", true);
 	obs_data_set_default_double(s, "temperature", 0.1);
 	obs_data_set_default_double(s, "max_initial_ts", 1.0);
 	obs_data_set_default_double(s, "length_penalty", -1.0);
@@ -597,9 +596,8 @@ obs_properties_t *cleanstream_properties(void *data)
 				OBS_TEXT_DEFAULT);
 	// bool suppress_blank
 	obs_properties_add_bool(whisper_params_group, "suppress_blank", MT_("suppress_blank"));
-	// bool suppress_non_speech_tokens
-	obs_properties_add_bool(whisper_params_group, "suppress_non_speech_tokens",
-				MT_("suppress_non_speech_tokens"));
+	// bool suppress_nst
+	obs_properties_add_bool(whisper_params_group, "suppress_nst", MT_("suppress_nst"));
 	// float temperature
 	obs_properties_add_float_slider(whisper_params_group, "temperature", MT_("temperature"),
 					0.0f, 1.0f, 0.05f);

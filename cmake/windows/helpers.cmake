@@ -92,7 +92,7 @@ function(target_install_resources target)
 
     install(
       DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/data/"
-      DESTINATION data/obs-plugins/${target}
+      DESTINATION "data/obs-plugins/${target}"
       USE_SOURCE_PERMISSIONS)
 
     if(OBS_BUILD_DIR)

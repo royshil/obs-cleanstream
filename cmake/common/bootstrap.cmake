@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16...3.26)
+cmake_minimum_required(VERSION 3.28...4.12)
 
 include_guard(GLOBAL)
 
@@ -27,6 +27,12 @@ if(POLICY CMP0090)
   cmake_policy(SET CMP0090 NEW)
 endif()
 
+# Allow invalid arguments to add_custom_command() - lua and python scripting CMake files in OBS source use these invalid
+# args
+if(POLICY CMP0175)
+  cmake_policy(SET CMP0175 OLD)
+endif()
+
 # Prohibit in-source builds
 if("${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
   message(FATAL_ERROR "In-source builds are not supported. "
@@ -49,8 +55,6 @@ string(JSON _author GET ${buildspec} author)
 string(JSON _email GET ${buildspec} email)
 string(JSON _version GET ${buildspec} version)
 string(JSON _bundleId GET ${buildspec} platformConfig macos bundleId)
-string(JSON _macosPackageUUID GET ${buildspec} uuids macosPackage)
-string(JSON _macosInstallerUUID GET ${buildspec} uuids macosInstaller)
 string(JSON _windowsAppUUID GET ${buildspec} uuids windowsApp)
 # cmake-format: on
 

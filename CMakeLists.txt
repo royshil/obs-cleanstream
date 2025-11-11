@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16...3.26)
+cmake_minimum_required(VERSION 3.28...4.12)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/common/bootstrap.cmake" NO_POLICY_SCOPE)
 
@@ -6,6 +6,11 @@ project(${_name} VERSION ${_version})
 
 option(ENABLE_FRONTEND_API "Use obs-frontend-api for UI functionality" ON)
 option(ENABLE_QT "Use Qt functionality" ON)
+
+if(CMAKE_MAJOR_VERSION EQUAL 4)
+  message(STATUS "CMake 4 detected")
+  set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+endif()
 
 include(compilerconfig)
 include(defaults)
@@ -22,8 +27,8 @@ if(ENABLE_FRONTEND_API)
 endif()
 
 if(ENABLE_QT)
-  find_qt(COMPONENTS Widgets Core)
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Qt::Core Qt::Widgets)
+  find_package(Qt6 COMPONENTS Widgets Core)
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets)
   target_compile_options(
     ${CMAKE_PROJECT_NAME} PRIVATE $<$<C_COMPILER_ID:Clang,AppleClang>:-Wno-quoted-include-in-framework-header
                                   -Wno-comma>)
@@ -50,19 +55,17 @@ else()
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE libcurl)
 endif()
 
-if(WIN32)
-  if(DEFINED ENV{ACCELERATION})
-    set(ACCELERATION
-        $ENV{ACCELERATION}
-        CACHE STRING "Acceleration to use" FORCE)
-  endif()
-  if(NOT DEFINED ACCELERATION)
-    set(ACCELERATION
-        "cpu"
-        CACHE STRING "Acceleration to use")
-  endif()
-  set_property(CACHE ACCELERATION PROPERTY STRINGS "cpu" "hipblas" "cuda")
+if(DEFINED ENV{ACCELERATION})
+  set(ACCELERATION
+      $ENV{ACCELERATION}
+      CACHE STRING "Acceleration to use" FORCE)
 endif()
+if(NOT DEFINED ACCELERATION)
+  set(ACCELERATION
+      "generic"
+      CACHE STRING "Acceleration to use")
+endif()
+set_property(CACHE ACCELERATION PROPERTY STRINGS "generic" "nvidia" "amd")
 
 include(cmake/BuildWhispercpp.cmake)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Whispercpp)
