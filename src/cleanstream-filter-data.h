@@ -32,6 +32,12 @@ struct cleanstream_audio_info {
 	uint64_t timestamp;
 };
 
+struct gpu_device_info {
+	size_t device_index;
+	const char *device_name;
+	const char *device_description;
+};
+
 struct cleanstream_data {
 	obs_source_t *context; // obs input source
 	size_t channels;       // number of channels
@@ -45,6 +51,11 @@ struct cleanstream_data {
 
 	/* Silero VAD */
 	std::unique_ptr<VadIterator> vad;
+
+	// GPU device to use, or -1 for CPU only
+	int gpu_device;
+	std::vector<gpu_device_info> gpu_devices;
+	bool enable_flash_attn;
 
 	/* PCM buffers */
 	float *copy_buffers[MAX_PREPROC_CHANNELS];

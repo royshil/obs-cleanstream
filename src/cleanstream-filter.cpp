@@ -41,6 +41,61 @@
 
 void whisper_loop(void *data);
 
+void enumerate_gpu_devices(cleanstream_data *gf)
+{
+#ifdef WHISPER_DYNAMIC_BACKENDS
+	// Load CPU backends
+	auto path = std::filesystem::path(obs_get_module_binary_path(obs_current_module()))
+			    .parent_path();
+#if !defined(_WIN32) && defined(__linux__)
+	// Linux has modules in a subdirectory, Windows does not
+	path /= "obs-localvocal";
+#elif !defined(_WIN32)
+	// MacOS is just weird
+	path = path.parent_path() / "Frameworks";
+#endif
+
+	obs_log(LOG_INFO, "Loading dynamic backends from %s", path.string().c_str());
+	ggml_backend_load_all_from_path(path.string().c_str());
+#endif
+
+	// Enumerate backend devices to populate list
+	auto backend_count = ggml_backend_dev_count();
+	size_t gpu_count = 0;
+	for (size_t i = 0; i < backend_count; i++) {
+		auto backend_dev = ggml_backend_dev_get(i);
+		auto name = ggml_backend_dev_name(backend_dev);
+		auto desc = ggml_backend_dev_description(backend_dev);
+		auto type = "UNKNOWN";
+		bool add_device_to_config = false;
+		switch (ggml_backend_dev_type(backend_dev)) {
+		case GGML_BACKEND_DEVICE_TYPE_CPU:
+			type = "CPU";
+			break;
+		case GGML_BACKEND_DEVICE_TYPE_GPU:
+			type = "GPU";
+			add_device_to_config = true;
+			break;
+		case GGML_BACKEND_DEVICE_TYPE_ACCEL:
+			type = "ACCEL";
+			break;
+		case GGML_BACKEND_DEVICE_TYPE_IGPU:
+			type = "IGPU";
+			add_device_to_config = true;
+			break;
+		};
+		if (add_device_to_config) {
+			gpu_device_info device;
+			device.device_index = i;
+			device.device_name = name;
+			device.device_description = desc;
+			gf->gpu_devices.push_back(device);
+			gpu_count++;
+		}
+		obs_log(LOG_INFO, "Backend device %d (%s): %s - %s", i, type, name, desc);
+	};
+}
+
 struct obs_audio_data *cleanstream_filter_audio(void *data, struct obs_audio_data *audio)
 {
 	if (data == nullptr) {
@@ -306,7 +361,6 @@ void *cleanstream_create(obs_data_t *settings, obs_source_t *filter)
 	}
 
 	gf->context = filter;
-	gf->whisper_model_path = std::string(""); // The update function will set the model path
 	gf->whisper_context = nullptr;
 
 	obs_log(LOG_INFO, "CleanStream filter: channels %d, sample_rate %d", (int)gf->channels,
@@ -351,6 +405,8 @@ void *cleanstream_create(obs_data_t *settings, obs_source_t *filter)
 		}
 	}
 #endif
+
+	enumerate_gpu_devices(gf);
 
 	// call the update function to set the whisper model
 	cleanstream_update(gf, settings);
@@ -409,11 +465,41 @@ void cleanstream_defaults(obs_data_t *s)
 	obs_data_set_default_double(s, "temperature", 0.1);
 	obs_data_set_default_double(s, "max_initial_ts", 1.0);
 	obs_data_set_default_double(s, "length_penalty", -1.0);
+
+	// backend options
+	obs_data_set_default_int(s, "backend_device", -1);
+	obs_data_set_default_bool(s, "enable_flash_attn", false);
+}
+
+void add_whisper_backend_group_properties(obs_properties_t *ppts, struct cleanstream_data *gf)
+{
+	// add a group for setting the whisper backend(s) to use
+	obs_properties_t *backend_group = obs_properties_create();
+	obs_properties_add_group(ppts, "backend_group", MT_("backend_group"), OBS_GROUP_NORMAL,
+				 backend_group);
+
+	obs_property_t *backend_device =
+		obs_properties_add_list(backend_group, "backend_device", MT_("backend_device"),
+					OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+
+	obs_property_list_add_int(backend_device, "CPU only", -1);
+	for (size_t i = 0; i < gf->gpu_devices.size(); i++) {
+		auto name = gf->gpu_devices.at(i).device_name;
+		auto description = gf->gpu_devices.at(i).device_description;
+		obs_property_list_add_int(
+			backend_device,
+			std::string("GPU: ").append(name).append(" - ").append(description).c_str(),
+			i);
+	}
+
+	obs_property_t *enable_flash_attn = obs_properties_add_bool(
+		backend_group, "enable_flash_attn", MT_("enable_flash_attn"));
+	obs_property_set_long_description(enable_flash_attn, MT_("enable_flash_attn_tooltip"));
 }
 
 obs_properties_t *cleanstream_properties(void *data)
 {
-	UNUSED_PARAMETER(data);
+	struct cleanstream_data *gf = static_cast<struct cleanstream_data *>(data);
 
 	obs_properties_t *ppts = obs_properties_create();
 
@@ -427,8 +513,6 @@ obs_properties_t *cleanstream_properties(void *data)
 	obs_property_list_add_int(replace_sounds_list, "Silence", REPLACE_SOUNDS_SILENCE);
 	// on windows and mac, add external file path for replace sound
 #if defined(_WIN32) || defined(__APPLE__)
-	struct cleanstream_data *gf = static_cast<struct cleanstream_data *>(data);
-
 	if (!gf->audioFileCache["beep.wav"].empty()) {
 		obs_property_list_add_int(replace_sounds_list, "Beep", REPLACE_SOUNDS_BEEP);
 	}
@@ -529,6 +613,8 @@ obs_properties_t *cleanstream_properties(void *data)
 		}
 		return true;
 	});
+
+	add_whisper_backend_group_properties(ppts, gf);
 
 	obs_properties_t *advanced_settings_group = obs_properties_create();
 	obs_properties_add_group(ppts, "advanced_settings_group", MT_("Advanced_Settings"),
