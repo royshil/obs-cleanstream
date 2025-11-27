@@ -41,13 +41,11 @@ private:
 	Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeCPU);
 
 private:
-	void init_engine_threads(int inter_threads, int intra_threads);
-	void init_onnx_model(const SileroString &model_path);
-	void reset_states();
-	void predict(const std::vector<float> &data);
+	void init_engine_threads(int inter_threads, int intra_threads);	void init_onnx_model(const SileroString &model_path);
+	void reset_states();	void predict(const float *data);
 
 public:
-	void process(const std::vector<float> &input_wav);
+	void process(const float *input_wav, size_t num_samples);
 	void process(const std::vector<float> &input_wav, std::vector<float> &output_wav);
 	void collect_chunks(const std::vector<float> &input_wav, std::vector<float> &output_wav);
 	const std::vector<timestamp_t> get_speech_timestamps() const;

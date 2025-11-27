@@ -107,11 +107,11 @@ void VadIterator::reset_states()
 	current_speech = timestamp_t();
 };
 
-void VadIterator::predict(const std::vector<float> &data)
+void VadIterator::predict(const float *data)
 {
 	// Infer
 	// Create ort tensors
-	input.assign(data.begin(), data.end());
+	std::memcpy(input.data(), data, window_size_samples * sizeof(float));
 	Ort::Value input_ort = Ort::Value::CreateTensor<float>(memory_info, input.data(),
 							       input.size(), input_node_dims, 2);
 	Ort::Value sr_ort = Ort::Value::CreateTensor<int64_t>(memory_info, sr.data(), sr.size(),
@@ -256,17 +256,17 @@ void VadIterator::predict(const std::vector<float> &data)
 	}
 };
 
-void VadIterator::process(const std::vector<float> &input_wav)
+void VadIterator::process(const float *input_wav, size_t num_samples)
 {
 	reset_states();
 
-	audio_length_samples = (int)input_wav.size();
+	audio_length_samples = (int)num_samples;
 
 	for (int j = 0; j < audio_length_samples; j += (int)window_size_samples) {
 		if (j + (int)window_size_samples > audio_length_samples)
 			break;
-		std::vector<float> r{&input_wav[0] + j, &input_wav[0] + j + window_size_samples};
-		predict(r);
+		const float *chunk = input_wav + j;
+		predict(chunk);
 	}
 
 	if (current_speech.start >= 0) {
@@ -282,7 +282,7 @@ void VadIterator::process(const std::vector<float> &input_wav)
 
 void VadIterator::process(const std::vector<float> &input_wav, std::vector<float> &output_wav)
 {
-	process(input_wav);
+	process(input_wav.data(), input_wav.size());
 	collect_chunks(input_wav, output_wav);
 }
 
