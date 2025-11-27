@@ -22,38 +22,54 @@ jobs:
         id: setup
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
+        run: | 
           : Check Event Data ☑️
           if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
-
+          
+          config_data=(
+            'codesign:false'
+            'notarize:false'
+            'package:false'
+            'config:RelWithDebInfo'
+          )
+          
           case "${GITHUB_EVENT_NAME}" in
+          
             pull_request)
               config_data=('codesign:false' 'notarize:false' 'package:false' 'config:RelWithDebInfo')
+          
               if [[ ${{ contains(github.event.pull_request.labels.*.name, 'Seeking Testers') }} = true ]]; then
                 config_data[0]='codesign:true'
                 config_data[2]='package:true'
               fi
               ;;
+          
             push)
               config_data=('codesign:true' 'notarize:false' 'package:true' 'config:RelWithDebInfo')
-              if [[ ${GITHUB_REF_NAME} =~ [0-9]+.[0-9]+.[0-9]+(-(rc|beta).+)? ]]; then
+          
+              if [[ ${GITHUB_REF_NAME} =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(rc|beta).+)?$ ]]; then
                 config_data[1]='notarize:true'
                 config_data[3]='config:Release'
               fi
               ;;
+          
             workflow_dispatch)
               config_data=('codesign:true' 'notarize:false' 'package:false' 'config:RelWithDebInfo')
               ;;
+          
             schedule)
               config_data=('codesign:true' 'notarize:false' 'package:true' 'config:RelWithDebInfo')
               ;;
-            *) ;;
+          
+            *)
+              ;;
           esac
-
+          
           for config in "${config_data[@]}"; do
             IFS=':' read -r key value <<< "${config}"
-            echo "${key}=${value}" >> $GITHUB_OUTPUT
+            echo "${key}=\"${value}\"" >> $GITHUB_OUTPUT
           done
+          
           echo "commitHash=${GITHUB_SHA:0:9}" >> $GITHUB_OUTPUT
 
   macos-build:
