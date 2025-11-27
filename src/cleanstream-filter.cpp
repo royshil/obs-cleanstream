@@ -551,10 +551,12 @@ obs_properties_t *cleanstream_properties(void *data)
 	if (!gf->audioFileCache["beep.wav"].empty()) {
 		obs_property_list_add_int(replace_sounds_list, MT_("Beep"), REPLACE_SOUNDS_BEEP);
 	}
+
 	if (!gf->audioFileCache["horn.wav"].empty()) {
 		obs_property_list_add_int(replace_sounds_list, MT_("Random"), REPLACE_SOUNDS_RANDOM);
 		obs_property_list_add_int(replace_sounds_list, MT_("Horn"), REPLACE_SOUNDS_HORN);
 	}
+
 	obs_property_list_add_int(replace_sounds_list, MT_("External"), REPLACE_SOUNDS_EXTERNAL);
 
 	// add external file path for replace sound
@@ -611,43 +613,44 @@ obs_properties_t *cleanstream_properties(void *data)
 			return true;
 		},
 		gf);
-#endif
-	obs_property_set_modified_callback2(
-		random_sound_path,
-		[](void *data_, obs_properties_t *props, obs_property_t *property,
-		   obs_data_t *settings) {
-			UNUSED_PARAMETER(property);
-			UNUSED_PARAMETER(props);
-			struct cleanstream_data *gf_ =
-				static_cast<struct cleanstream_data *>(data_);
-			gf_->random_audio_files.clear();
-			std::string random_folder_path =
-				obs_data_get_string(settings, "replace_sound_random_folder");
-			if (random_folder_path.empty()) {
-				return true;
-			}
-			gf_->replace_sound_random_folder = random_folder_path;
-			for (const auto &entry :
-			     std::filesystem::directory_iterator(random_folder_path)) {
-				if (entry.path().extension() == ".wav") {
-					std::string file_path = entry.path().string();
-					gf_->random_audio_files.push_back(file_path);
-					if (gf_->audioFileCache.find(file_path) ==
-					    gf_->audioFileCache.end()) {
-						AudioDataFloat audioFile = read_audio_file(
-							file_path.c_str(), gf_->sample_rate);
-						if (audioFile.empty()) {
-							obs_log(LOG_ERROR, "Failed to load audio file: %s",
-								file_path.c_str());
-						} else {
-							gf_->audioFileCache[file_path] = audioFile;
+
+		obs_property_set_modified_callback2(
+			random_sound_path,
+			[](void *data_, obs_properties_t *props, obs_property_t *property,
+			obs_data_t *settings) {
+				UNUSED_PARAMETER(property);
+				UNUSED_PARAMETER(props);
+				struct cleanstream_data *gf_ =
+					static_cast<struct cleanstream_data *>(data_);
+				gf_->random_audio_files.clear();
+				std::string random_folder_path =
+					obs_data_get_string(settings, "replace_sound_random_folder");
+				if (random_folder_path.empty()) {
+					return true;
+				}
+				gf_->replace_sound_random_folder = random_folder_path;
+				for (const auto &entry :
+					std::filesystem::directory_iterator(random_folder_path)) {
+					if (entry.path().extension() == ".wav") {
+						std::string file_path = entry.path().string();
+						gf_->random_audio_files.push_back(file_path);
+						if (gf_->audioFileCache.find(file_path) ==
+							gf_->audioFileCache.end()) {
+							AudioDataFloat audioFile = read_audio_file(
+								file_path.c_str(), gf_->sample_rate);
+							if (audioFile.empty()) {
+								obs_log(LOG_ERROR, "Failed to load audio file: %s",
+									file_path.c_str());
+							} else {
+								gf_->audioFileCache[file_path] = audioFile;
+							}
 						}
 					}
 				}
-			}
-			return true;
-		},
-		gf);
+				return true;
+			},
+			gf);
+#endif
 
 	// Add a list of available whisper models to download
 	obs_property_t *whisper_models_list =
