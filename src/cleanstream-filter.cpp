@@ -23,6 +23,7 @@
 #include "whisper-utils/whisper-language.h"
 #include "whisper-utils/whisper-processing.h"
 #include "whisper-utils/whisper-utils.h"
+#include "audio-utils/read-audio-file.h"
 #include "cleanstream-filter-data.h"
 
 #include "plugin-support.h"
@@ -230,7 +231,7 @@ struct obs_audio_data *cleanstream_filter_audio(void *data, struct obs_audio_dat
 						: "";
 
 				if (gf->replace_sound == REPLACE_SOUNDS_RANDOM && gf->audioFilePointer == 0 && !gf->random_audio_files.empty()) {
-					int random_index = rand() % gf->random_audio_files.size();
+					size_t random_index = rand() % gf->random_audio_files.size();
 					gf->current_random_audio = gf->random_audio_files[random_index];
 					replace_audio_name = gf->current_random_audio;
 				}
@@ -557,12 +558,13 @@ obs_properties_t *cleanstream_properties(void *data)
 	obs_property_list_add_int(replace_sounds_list, MT_("External"), REPLACE_SOUNDS_EXTERNAL);
 
 	// add external file path for replace sound
+	obs_property_t *random_sound_path = nullptr;
 	obs_property_t *replace_sound_path = obs_properties_add_path(
 		ppts, "replace_sound_path", MT_("replace_sound_path"), OBS_PATH_FILE,
 		MT_("WavFilesFilter"), nullptr);
 
 	// add folder path for random sounds
-	obs_property_t *random_sound_path = obs_properties_add_path(
+	random_sound_path = obs_properties_add_path(
 		ppts, "replace_sound_random_folder", MT_("replace_sound_random_folder"),
 		OBS_PATH_DIRECTORY, nullptr, nullptr);
 
