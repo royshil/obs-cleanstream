@@ -104,13 +104,38 @@ struct obs_audio_data *cleanstream_filter_audio(void *data, struct obs_audio_dat
 
 	struct cleanstream_data *gf = static_cast<struct cleanstream_data *>(data);
 
-	if (!gf->active) {
+	bool muted = obs_source_muted(obs_filter_get_parent(gf->context));
+
+	if (!gf->active || muted) {
+		if (gf->whisper_context != nullptr) {
+			obs_log(LOG_INFO, "Source is muted or filter is inactive, shutting down whisper thread");
+			shutdown_whisper_thread(gf);
+
+			// Clear audio buffers to prevent leftover sound on unmute
+			std::lock_guard<std::mutex> lock(gf->whisper_buf_mutex);
+			for (size_t c = 0; c < gf->channels; c++) {
+				deque_free(&gf->input_buffers[c]);
+				deque_init(&gf->input_buffers[c]);
+			}
+			deque_free(&gf->info_buffer);
+			deque_init(&gf->info_buffer);
+			gf->audioFilePointer = 0;
+			gf->current_result = DETECTION_RESULT_UNKNOWN;
+			gf->current_result_start_timestamp = 0;
+			gf->current_result_end_timestamp = 0;
+		}
 		return audio;
 	}
 
 	if (gf->whisper_context == nullptr) {
-		// Whisper not initialized, just pass through
-		return audio;
+		// Whisper not initialized, try to start it
+		obs_log(LOG_INFO, "Whisper context is null, attempting to start whisper thread");
+		obs_data_t *settings = obs_source_get_settings(gf->context);
+		update_whisper_model(gf, settings);
+		obs_data_release(settings);
+		// If it's still null, pass through audio
+		if (gf->whisper_context == nullptr)
+			return audio;
 	}
 
 	size_t input_buffer_size = 0;
