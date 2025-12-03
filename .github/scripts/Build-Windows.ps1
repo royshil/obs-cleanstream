@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param (
+param(
     [ValidateSet('x64')]
     [string] $Target = 'x64',
     [ValidateSet('Debug', 'RelWithDebInfo', 'Release', 'MinSizeRel')]
@@ -11,9 +11,6 @@ param (
 )
 
 $ErrorActionPreference = 'Stop'
-
-# Remove extra quotes from Configuration if they exist
-$Configuration = $Configuration.Trim('"')
 
 if ( $DebugPreference -eq 'Continue' ) {
     $VerbosePreference = 'Continue'

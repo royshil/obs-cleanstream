@@ -22,54 +22,38 @@ jobs:
         id: setup
         env:
           GH_TOKEN: ${{ github.token }}
-        run: | 
+        run: |
           : Check Event Data ☑️
           if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
-          
-          config_data=(
-            'codesign:false'
-            'notarize:false'
-            'package:false'
-            'config:RelWithDebInfo'
-          )
-          
+
           case "${GITHUB_EVENT_NAME}" in
-          
             pull_request)
               config_data=('codesign:false' 'notarize:false' 'package:false' 'config:RelWithDebInfo')
-          
               if [[ ${{ contains(github.event.pull_request.labels.*.name, 'Seeking Testers') }} = true ]]; then
                 config_data[0]='codesign:true'
                 config_data[2]='package:true'
               fi
               ;;
-          
             push)
               config_data=('codesign:true' 'notarize:false' 'package:true' 'config:RelWithDebInfo')
-          
-              if [[ ${GITHUB_REF_NAME} =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(rc|beta).+)?$ ]]; then
+              if [[ ${GITHUB_REF_NAME} =~ [0-9]+.[0-9]+.[0-9]+(-(rc|beta).+)? ]]; then
                 config_data[1]='notarize:true'
                 config_data[3]='config:Release'
               fi
               ;;
-          
             workflow_dispatch)
               config_data=('codesign:true' 'notarize:false' 'package:false' 'config:RelWithDebInfo')
               ;;
-          
             schedule)
               config_data=('codesign:true' 'notarize:false' 'package:true' 'config:RelWithDebInfo')
               ;;
-          
-            *)
-              ;;
+            *) ;;
           esac
-          
+
           for config in "${config_data[@]}"; do
             IFS=':' read -r key value <<< "${config}"
-            echo "${key}=\"${value}\"" >> $GITHUB_OUTPUT
+            echo "${key}=${value}" >> $GITHUB_OUTPUT
           done
-          
           echo "commitHash=${GITHUB_SHA:0:9}" >> $GITHUB_OUTPUT
 
   macos-build:
@@ -154,8 +138,8 @@ jobs:
           codesign: ${{ fromJSON(needs.check-event.outputs.codesign) && fromJSON(steps.codesign.outputs.haveCodesignIdent) }}
           codesignIdent: ${{ steps.codesign.outputs.codesignIdent }}
           installerIdent: ${{ steps.codesign.outputs.installerIdent }}
-          codesignTeam: ${{ steps.codesign.outputs.codesignTeam || '' }}
-          notarize: ${{ fromJSON(needs.check-event.outputs.notarize) && steps.codesign.outcome == 'success' && fromJSON(steps.codesign.outputs.haveNotarizationUser) }}
+          codesignTeam: ${{ steps.codesign.outputs.codesignTeam }}
+          notarize: ${{ fromJSON(needs.check-event.outputs.notarize) && fromJSON(steps.codesign.outputs.haveNotarizationUser) }}
           codesignUser: ${{ secrets.MACOS_NOTARIZATION_USERNAME }}
           codesignPass: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
         env:
@@ -293,7 +277,7 @@ jobs:
         if: ${{ fromJSON(needs.check-event.outputs.package) }}
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-22.04-x86_64-${{ matrix.acceleration }}-${{ needs.check-event.outputs.commitHash }}-dbgsym
-          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64-linux-gnu--${{ matrix.acceleration }}*-dbgsym.deb
+          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64-linux-gnu--${{ matrix.acceleration }}*-dbgsym.ddeb
 
   windows-build:
     name: Build for Windows 🪟
