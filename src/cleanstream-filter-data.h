@@ -24,6 +24,7 @@ enum ReplaceSounds {
 	REPLACE_SOUNDS_SILENCE = 2,
 	REPLACE_SOUNDS_HORN = 3,
 	REPLACE_SOUNDS_EXTERNAL = 4,
+	REPLACE_SOUNDS_RANDOM = 5,
 };
 
 // Audio packet info
@@ -90,7 +91,10 @@ struct cleanstream_data {
 	bool log_words;
 	bool active;
 	long long replace_sound;
+	std::string current_random_audio;
+	std::vector<std::string> random_audio_files;
 	std::string replace_sound_external;
+	std::string replace_sound_random_folder;
 };
 
 #endif

@@ -274,9 +274,7 @@ long long process_audio_from_buffer(struct cleanstream_data *gf)
 	bool skipped_inference = false;
 
 	if (gf->vad_enabled && gf->vad != nullptr) {
-		std::vector<float> vad_input(whisper_buffer_16khz[0],
-					     whisper_buffer_16khz[0] + whisper_frames);
-		gf->vad->process(vad_input);
+		gf->vad->process(whisper_buffer_16khz[0], whisper_frames);
 
 		std::vector<timestamp_t> stamps = gf->vad->get_speech_timestamps();
 		if (stamps.size() == 0) {
